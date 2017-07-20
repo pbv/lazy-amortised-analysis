@@ -1,0 +1,64 @@
+{-
+  The Hamming problem: construct the infinite sequence of numbers in
+  ascending order that contains 1 and is closed for multiplications by
+  2 and 3.
+
+  From Bird & Wadler's "Introduction to functional
+  programming" textbook.
+-}
+
+let map = \f xs ->
+  match xs with
+  Cons(x,xs') -> let fx = f x
+  	      	 in let t = map f xs'
+		 in letcons r = Cons(fx,t) in r
+in
+let merge1 = \xs ys ->  
+    match xs with 
+    Cons(x,xs') -> match ys with
+    Cons(y,ys') -> if x==y then 
+    	       	  let zs = merge1 xs' ys'
+		  in letcons r = Cons(x,zs) in r
+	else if x<y then 
+	     	    let zs = merge1 xs' ys
+		   in letcons r =Cons(x,zs) in r
+	else let zs = merge1 xs ys'
+	     in letcons r = Cons(y,zs) in r
+
+in 
+let merge2 = \xs ys ->  
+    match xs with 
+    Cons(x,xs') -> match ys with
+    Cons(y,ys') -> if x==y then 
+    	       	  let zs = merge2 xs' ys'
+		  in letcons r = Cons(x,zs) in r
+	else if x<y then 
+	     	    let zs = merge2 xs' ys
+		   in letcons r =Cons(x,zs) in r
+	else let zs = merge2 xs ys'
+	     in letcons r = Cons(y,zs) in r
+
+in 
+let one = 1
+in 
+let two = 2
+in 
+let three = 3
+in 
+let five = 5
+in
+let mul2 = \x -> two * x
+in
+let mul3 = \x -> three * x
+in
+let mul5 = \x -> five * x
+in
+let hamming =
+    let t2 = map mul2 hamming
+    in let t3 = map mul3 hamming
+    in let t5 = map mul5 hamming
+    in let xs = merge1 t3 t5
+    in let ys = merge2 t2 xs
+    in letcons r = Cons(one, ys)  in r
+in 
+hamming

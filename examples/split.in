@@ -1,0 +1,18 @@
+
+{-
+   Splitting an even-length list into two lists of equal size
+-}
+
+let split = \xs -> match xs with
+    Nil() -> letcons evens = Nil() in
+             letcons odds = Nil() in
+             letcons r = Pair(evens,odds) in r
+  | Cons(h,t) -> match t with
+        Cons(h', t') -> match split t' with
+              Pair(evens,odds) ->
+                letcons evens' = Cons(h, evens) in
+                letcons odds' = Cons(h', odds) in
+                letcons r = Pair(evens',odds') in r
+
+in
+split

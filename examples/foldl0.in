@@ -1,0 +1,13 @@
+
+let foldl 
+-- : T(T(Int) -> T(Int) -> Int) ->
+--    T(Int) -> T(Rec{Cons@q:(T(Int),T(#)) | Nil@n:()}) -> Int
+--    {  }
+    = \f z xs -> match xs with 
+        	    Nil() -> z
+	    | Cons(x,xs') -> let x' = f z x 
+	      		     in foldl f x' xs'
+
+in let zero = 0
+in let plus = \x y -> x+y
+in foldl plus zero 

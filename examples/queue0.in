@@ -1,0 +1,36 @@
+{-
+   Okasaki's purely functional queues with amortized O(1) cost
+-}
+
+let rev_acc = \ys xs -> match xs with
+      Nil () -> ys
+    | Cons(x,xs') -> letcons ys' = Cons(x,ys)
+    		   in rev_acc ys' xs' 
+in
+   let reverse = (letcons nil = Nil() in \xs -> rev_acc nil  xs)
+in
+
+-- make a normalized queue 
+-- i.e. front is non-empty if queue is non-empty
+let mkqueue = \f r -> match f with
+      Nil() -> let f' = reverse r
+               in letcons nil = Nil()
+               in letcons q = Pair(f',nil)
+	       in q
+   | Cons(x,xs) -> letcons q = Pair(f,r)
+                   in q
+
+-- insert into the back of the queue
+in let enqueue = \x q -> match q with
+    	      	   Pair(f,r) -> letcons r' = Cons(x,r)
+				in mkqueue f r'
+
+-- remove from the front of the queue
+in let dequeue = \q -> match q with
+   	     	Pair(f,r) -> match f with
+			     Cons(x,xs) -> mkqueue xs r
+
+-- dummy
+in 0
+
+

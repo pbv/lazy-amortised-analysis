@@ -1,0 +1,35 @@
+{-
+  List fusion law:
+  map f (map g xs) = map (f.g) xs
+
+  Analyse the allocation cost of the left and right-hand sides
+-}
+
+-- duplicate definitions of map to improve precision
+
+let map1 = \f xs -> match xs with
+    Cons(x,xs') -> let y = f x 
+    		   in let ys = map1 f xs'
+		   in letcons r = Cons(y,ys) in r
+| Nil() -> letcons r = Nil() in r
+
+in let map2 = \f xs -> match xs with
+    Cons(x,xs') -> let y = f x 
+    		   in let ys = map2 f xs'
+		   in letcons r = Cons(y,ys) in r
+| Nil() -> letcons r = Nil() in r
+
+in let map3 = \f xs -> match xs with
+    Cons(x,xs') -> let y = f x 
+    		   in let ys = map3 f xs'
+		   in letcons r = Cons(y,ys) in r
+| Nil() -> letcons r = Nil() in r
+
+
+in let lhs
+  =  \f g xs -> let ys = map2 g xs in map1 f ys
+
+in let rhs
+ =  \f g xs -> let h = (\x -> let y = g x in f y) in  map3 h xs
+
+in 0

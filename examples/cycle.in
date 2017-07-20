@@ -1,0 +1,20 @@
+
+{-
+-- build a cyclic list in finite space, e.g.
+-- cycle :: [a] -> [a]
+-- cycle xs = xss
+--     where xss = xs ++ xss
+-}
+
+let append 
+  = \ys xs -> match xs with
+     Nil() -> ys
+   | Cons(x,xs') -> let ys' = append ys xs' 
+        in letcons r = Cons(x,ys') 
+        in r
+in
+
+let cycle = \xs -> let xss = append xss xs in xss
+
+in 
+cycle

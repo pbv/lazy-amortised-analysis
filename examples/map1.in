@@ -1,0 +1,13 @@
+
+let map :
+  T(T(a) ->@c b) ->
+    T(Rec{Cons:(T(a),T(#)) | Nil:()}) ->
+      Rec{Cons:(T(b),T(#)) | Nil:()}
+      { c = 1 }  
+ = \f xs -> match xs with
+    	        Nil () -> letcons nil=Nil() in nil
+	      | Cons(x,xs') -> let y = f x
+	      		       in let ys' = map f xs'
+			       in letcons ys = Cons(y,ys')
+			       in ys
+in map

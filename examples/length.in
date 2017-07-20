@@ -1,0 +1,9 @@
+
+let length
+  = \xs -> match xs with
+      Nil() -> 0
+    | Cons(x, xs') -> let one = 1 in
+                      let k = length xs' 
+                      in one + k
+in
+length

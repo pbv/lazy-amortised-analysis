@@ -1,0 +1,9 @@
+
+let map
+ = \f xs -> match xs with
+    	        Nil () -> letcons nil=Nil() in nil
+	      | Cons(x,xs') -> let y = f x
+	      		       in let ys' = map f xs'
+			       in letcons ys = Cons(y,ys')
+			       in ys
+in map

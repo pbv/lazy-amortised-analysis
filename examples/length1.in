@@ -1,0 +1,16 @@
+
+let length
+  = \xs -> match xs with
+      Nil() -> 0
+    | Cons(x, xs') -> let one = 1 in
+                      let len' = length xs' 
+                      in one + len'
+in
+
+let undefined = undefined
+in
+letcons nil = Nil()
+in
+letcons xs = Cons(undefined, nil)
+in
+length xs

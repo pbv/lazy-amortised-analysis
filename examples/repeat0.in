@@ -1,0 +1,10 @@
+
+{- 
+--  infinite repeat, naive version
+-}
+ 
+let repeat 
+   = \x -> let xs' = repeat x
+                in letcons xs = Cons(x,xs') 
+		in xs
+in repeat
