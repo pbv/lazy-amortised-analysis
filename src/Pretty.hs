@@ -2,6 +2,7 @@
 -- pbv, 2012
 module Pretty where
 
+import Prelude hiding ((<>))
 import Term
 import Types
 import Text.PrettyPrint.HughesPJ

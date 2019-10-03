@@ -1,0 +1,27 @@
+name:                lazy-amortised-analysis
+version:             0.2
+license:             MIT
+author:              "Pedro Baltazar Vasconcelos"
+maintainer:          "pbv@dcc.fc.up.pt"
+copyright:           "2019 Pedro Baltazar Vasconcelos"
+
+dependencies:
+- base >= 4.7 && < 5
+- mtl
+- transformers
+- containers
+- parsec
+- pretty
+- glpk-hs
+- gasp
+
+executables:
+  runanalysis:
+    main:                Main.hs
+    source-dirs:         src
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -W
+    
+

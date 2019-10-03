@@ -1,48 +1,62 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, PatternGuards #-}
+--
+-- Lazy Amortized Analysis
+--
 module Analysis where
 
-import Term
-import Types
-import DamasMilner
-import Control.Monad.State
-import Control.Monad.Reader
-import Data.LinearProgram hiding (Var,zero)
-import Data.LinearProgram.GLPK.Solver
-import Control.Monad.LPMonad hiding (Var)
-import Data.Map (Map)
+import           Prelude hiding (Num(..))
+import           Algebra.Classes hiding (zero)
+
+import           Term
+import           Types
+import           DamasMilner
+import           Control.Monad.State
+import           Control.Monad.Reader
+import           Data.LinearProgram hiding (Var,zero)
+import           Data.LinearProgram.GLPK.Solver
+import           Control.Monad.LPMonad hiding (Var)
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.List (transpose, partition, nubBy)
-import Data.Char (isSymbol)
-import Options
-import Cost (CostModel(..))
-import Debug.Trace  
+import           Data.List (transpose, partition, nubBy)
+import           Data.Char (isSymbol)
+import           Options
+import           Cost (CostModel(..))
+import           Debug.Trace  
 
 
--- typing contexts for annotated types
+-- | typing contexts for annotated types
 type Context a = [(Ident,TyExp a)]
 
--- context for amortized analysis
+-- | context for the lazy amortized analysis
 type Acontext = Context Ann
 
--- a monad for constructing linear programs
+-- | a monad for constructing linear programs
 type CLP = LPT Ann Int (StateT Ann (Reader Options))
 
--- fixed zero annotation variable
+-- | fixed zero annotation variable
 zero_ann :: Ann
 zero_ann = Ann 0
 
 zero :: LinFunc Ann Int
 zero = linCombination []
 
--- generate a fresh annotation variable
+-- | singleton annotation variables
+var :: Ann -> LinFunc Ann Int
+var x = linCombination [(1,x)]
+
+-- | sum a list of annotations
+vars :: [Ann] -> LinFunc Ann Int
+vars xs = linCombination $ zip (repeat 1) xs
+
+-- | generate a fresh annotation variable
 fresh_ann :: CLP Ann
 fresh_ann = do a <- lift (do {modify succ; get})
                varGeq a 0  -- impose non-negativity
                return a
            
 
--- decorate a type with fresh anotation variables
+-- | decorate a type with fresh anotation variables
 decorate_type :: TyExp a -> CLP Atype
 decorate_type (TyVar x) = return (TyVar x)
 decorate_type (TyThunk _ t) 
@@ -69,7 +83,7 @@ decorate_type TySelf = return TySelf
 decorate_type (TyCon b) = return (TyCon b)
 
 
--- decorate a term with annotation variables
+-- | decorate a term with annotation variables
 decorate_term :: Term HMtype -> CLP (Term Atype)
 decorate_term (Var x) = return (Var x)
 
@@ -102,7 +116,7 @@ decorate_term (Match e0 alts Nothing)
                          | (c,xs,e)<-alts]
        return (Match e0' alts' Nothing)
        
--- primitive operations       
+-- | primitive operations       
 decorate_term (Const n)       = return (Const n)
 decorate_term (PrimOp op x y) = return (PrimOp op x y)
 
@@ -110,22 +124,22 @@ decorate_term (Coerce a e)
   = do e' <- decorate_term e
        return (Coerce a e')
 
--- annotations  
+-- | annotations  
 decorate_term (e :@ t) 
   = do e' <- decorate_term e
        t' <- decorate_type t 
        return (e' :@ t')
 
 
--- sharing relation between types
--- assumes types have the same Hindley-Milner structure       
+-- | sharing relation between types
+-- pre-condition: types have the same Hindley-Milner structure       
 share :: Atype -> [Atype] -> CLP ()
 share _ [] = return ()
 
 -- thunks
 share (TyThunk q t0) ts 
   = do sequence_ [ do { var qi `geq` var q  
-                      -- ; (var qi ^-^ var q) `geq` (var qi' ^-^ var q')
+                      -- ; (var qi - var q) `geq` (var qi' - var q')
                       }
                  | TyThunk qi ti <- ts]
        share t0 [ ti | TyThunk qi ti <- ts]
@@ -151,7 +165,7 @@ share (TyTup as) ts
 -- TODO: verify this!
 share (TyRec alts) ts   
   = do sequence_ [ share a bs | (a,bs)<-zip as (transpose bss)]
-       sequence_ [ var p `geq` gsum (map var qs)  
+       sequence_ [ var p `geq` vars qs  
                  | (p,qs) <- zip ps (transpose qss)]
     where bss = [[b | (c,q,b)<-alts'] | TyRec alts'<-ts]
           qss = [[q | (c,q,b)<-alts'] | TyRec alts'<-ts]
@@ -165,22 +179,23 @@ share (TyCon b) ts = return ()
 share (TyVar x) ts = return ()
 
 
--- subtyping is a special case of sharing
+-- | subtyping is a special case of sharing
 subtype, equaltype :: Atype -> Atype -> CLP ()
 t1 `subtype` t2 = share t1 [t2]
 
--- the following is not used
-t1 `equaltype` t2 = t1 `subtype` t2 >> t2 `subtype` t1
+-- NB: the following is not needed 
+t1 `equaltype` t2 = do t1 `subtype` t2; t2 `subtype` t1
 
--- sharing a context against itself
+-- | sharing a context against itself
 share_self :: Acontext -> CLP ()
 share_self ctx = sequence_ [share t [t,t] | (x,t)<-ctx]
 
 
--- split a context for typing a subexpression
+-- | split a context for typing a subexpression
 split_context :: Acontext -> CLP (Acontext, Acontext)
 split_context ctx 
-  = let newctx = sequence [do {t'<-decorate_type t; return (x,t')} | (x,t)<-ctx]
+  = let newctx = sequence [do {t'<-decorate_type t; return (x,t')}
+                          | (x,t)<-ctx]
     in do ctx1 <- newctx
           ctx2 <- newctx
           sequence_ [ share t [t1,t2] | 
@@ -188,7 +203,7 @@ split_context ctx
           return (ctx1, ctx2)
 
 
--- trim context to vars with free occurences in a term
+-- | trim context to vars with free occurences in a term
 trim_context :: Term b -> Context a -> Context a
 trim_context e  
   = filter (\(x,_) -> x`Set.member`vars) . nubBy (\(x,_) (y,_) -> x==y)
@@ -199,12 +214,11 @@ trim_context e
 -- if \Gamma |-p0/p0'- e : C then  \Gamma |-p/p'- e : C
 relaxcost :: (LinFunc Ann Int, LinFunc Ann Int) ->
              (LinFunc Ann Int, LinFunc Ann Int) -> CLP ()
-(p,p') `relaxcost` (p0,p0') 
-  = do {p `geq` p0;  (p ^-^ p0) `geq` (p' ^-^ p0')}
+(p,p') `relaxcost` (p0,p0') = do {p `geq` p0;  (p - p0) `geq` (p' - p0')}
 
 
 
--- lower recursive thunk costs on a \mu-type
+-- | lower recursive thunk costs on a \mu-type
 -- identity for other types
 -- assumes types have the same structure
 lower_thunks :: Atype -> Atype -> CLP ()
@@ -248,17 +262,17 @@ askC :: (CostModel -> Int) -> CLP Int
 askC k = fmap k $ asks optCostModel
 
 
-{-  
-  Amortised Analysis 
-  collects linear constraints over annotations
--}
+  
+--  Amortised Analysis 
+-- collects linear constraints over annotations
+
 aa_infer :: Acontext -> Term Atype -> Atype -> Ann -> Ann -> CLP ()
 -- Var rule
 aa_infer ctx (Var x) t p p' 
   = let TyThunk q t' = lookupId x ctx 
     in do -- pe <- fresh_ann
           k <- askC costVar
-          ((var p ^-^ var p') ^-^ var q) `equalTo` k
+          ((var p - var p') - var q) `equalTo` k
           -- (var pe, var p') `relaxcost` (var q, zero)  -- allow relaxing 
           t' `subtype` t                          -- allow subtyping
 
@@ -280,7 +294,7 @@ aa_infer ctx (App (e :@ te) y) t0 p p'
         ty `subtype` t'
         t `subtype` t0
         k <- askC costApp
-        ((var p ^-^ var pe) ^-^ var q) `equalTo` k
+        ((var p - var pe) - var q) `equalTo` k
         -- allow relaxing
         -- (var p, var p') `relaxcost` (var pe ^+^ var q, var pe')
 
@@ -299,7 +313,7 @@ aa_infer ctx (Let x (e1 :@ tA) e2) tC p p'
               aa_infer_cons ((x,TyThunk zero_ann tA0):ctx1) e1 tA 
               aa_infer ((x,TyThunk zero_ann tA):ctx2) e2 tC pe p'
               k <- askC costLetcons
-              ((var p ^-^ var pe) ^-^ var qc) `equalTo` k
+              ((var p - var pe) - var qc) `equalTo` k
           
 
 -- Let rule 
@@ -311,7 +325,7 @@ aa_infer ctx (Let x (e1 :@ tA) e2) tC p p'
        pe <- fresh_ann
        (tA0,q0) <- aa_rectype tA' q
        k <- askC costLet
-       (var p ^-^ var pe) `equalTo` k
+       (var p - var pe) `equalTo` k
        (ctx1, ctx2) <- split_context ctx
        aa_infer ((x,TyThunk q0 tA0):ctx1) e1 tA q zero_ann
        aa_infer_prepay [(x,TyThunk q tA)] ctx2 e2 tC pe p'
@@ -322,7 +336,7 @@ aa_infer ctx (Match (e0 :@ t0) alts other) t p p''
   = do pe <- fresh_ann
        p' <- fresh_ann
        k <- askC costMatch
-       (var p ^-^ var pe) `equalTo` k
+       (var p - var pe) `equalTo` k
        (ctx1,ctx2) <- split_context ctx
        aa_infer ctx1 e0 t0 pe p'
        aa_infer_alts ctx2 alts t0 t p' p''
@@ -343,7 +357,7 @@ aa_infer ctx (PrimOp op x y) t p p'
           q <- fresh_ann
           var q `equalTo` k
           share t [t,t]  -- no potential
-          (var p, var p') `relaxcost` (var q ^+^ var q0 ^+^ var q1, zero)
+          (var p, var p') `relaxcost` (var q + var q0 + var q1, zero)
        
 
 -- user annotations and constraints
@@ -383,7 +397,7 @@ aa_infer_alts ctx alts t@(TyRec talts) t' p' p'' = mapM_ infer alts
           aa_infer_prepay (zip xs ts) ctx e t' pe' pe''
           -- var pe' `equal` (var p' ^+^ var q)
           -- (var p', var p'') `relaxcost` (var pe' ^+^ var q, var pe'')
-          var pe' `leq` (var p' ^+^ var q)
+          var pe' `leq` (var p' + var q)
           var pe'' `geq` var p''
           where (q,TyTup ts) = head ([ (q, recsubst t t') 
                                      | (c',q,t')<-talts, c'==c] ++
@@ -404,8 +418,8 @@ aa_infer_prepay ((x,TyThunk q t) : ctx1) ctx2 e t' p p'
   = do q0 <- fresh_ann
        q1 <- fresh_ann
        p0 <- fresh_ann
-       var q `equal` (var q0 ^+^ var q1)
-       var p `equal` (var p0 ^+^ var q1)
+       var q `equal` (var q0 + var q1)
+       var p `equal` (var p0 + var q1)
        aa_infer_prepay ctx1 ((x,TyThunk q0 t):ctx2) e t' p0 p'
 aa_infer_prepay ctx _ e t' p p'
   = error ("aa_infer_prepay: invalid context\n " ++ show ctx)
@@ -454,33 +468,33 @@ let_annotations (e :@ a)         = let_annotations e
 
 
 
--- toplevel inference 
--- obtains a typing \Gamma |-p/p'- e : C 
+-- | toplevel inference 
+-- generates a typing \Gamma |-p/p'- e : C 
 -- and a linear program for constraints over annotations
 -- set p'=0 and solves to minimize p (i.e. the whnf cost of the expression)
 aa_inference :: Options -> Term HMtype -> HMtype -> (Typing Ann, LP Ann Int)
 aa_inference opts e t
-  = runReader
-    (evalStateT 
-    (runLPT $ 
+  = flip runReader opts $
+    flip evalStateT (Ann 1) $
+    runLPT $ 
      do { varEq zero_ann 0
         ; p <- fresh_ann
         ; e'<- decorate_term e
         ; t'<- decorate_type t
         ; setDirection Min
-        ; setObjective  (varSum (p:annotations t'))
+        ; setObjective  (vars (p:annotations t'))
         ; aa_infer [] e' t' p zero_ann
         ; return Typing {aterm = let_annotations e', 
                          atype = t', 
                          ann_in  = p, 
                          ann_out = zero_ann}
-        }) (Ann 1)) opts
+        }
 
 
 
 
 
--- solve linear constraints and instantiate annotations
+-- | solve linear constraints and instantiate annotations
 aa_solve :: (Typing Ann, LP Ann Int) -> IO (Typing Double)
 aa_solve (typing, lp) 
   = do answer <- glpSolveVars simplexDefaults{msgLev=MsgOff} lp 

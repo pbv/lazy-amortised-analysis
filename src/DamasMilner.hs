@@ -249,11 +249,14 @@ prelude = [
   ("Pair", gen [a,b] (tuple [hmthunk (tyvar a), hmthunk (tyvar b)] ~>
                       hmpair (tyvar a) (tyvar b))),
   ("Just", gen [a] (tuple [hmthunk (tyvar a)] ~> hmmaybe (tyvar a))),
-  ("Nothing", gen [a] (unit ~> hmmaybe (tyvar a)))
+  ("Nothing", gen [a] (unit ~> hmmaybe (tyvar a))),
+  ("Branch", gen [a] (tuple [hmthunk (hmtree (tyvar a)),
+                             hmthunk (hmtree (tyvar a))] ~> hmtree (tyvar a))),
+  ("Leaf", gen [a] (tuple [hmthunk (tyvar a)] ~> hmtree (tyvar a)))
   ] 
   ++ -- arithmetic 
   [ (op, nogen (hmthunk (hmthunk hmint ~> hmthunk hmint ~> hmint))) 
-     | op <- ["+", "-", "*"]]
+     | op <- ["+", "-", "*", "//", "%"]]
   ++ -- comparisons
   [ (op, nogen (hmthunk (hmthunk hmint ~> hmthunk hmint ~> hmbool)))
      | op <- ["<", "<=", ">", ">=", "==", "/="]]

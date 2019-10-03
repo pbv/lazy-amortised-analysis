@@ -3,12 +3,17 @@
 -- Pedro Vasconcelos, 2012
 --
 module Parser where
+
+import Prelude         hiding (Num(..))
+import Algebra.Classes
+
 import Term
 import Types
 import Control.Monad(when)
 import Control.Applicative ((<$>))
 import Data.List(nub)
 import Data.LinearProgram hiding (Var)
+import qualified Data.LinearProgram as LP
 import qualified Data.Map as Map
 import Text.Parsec
 import Text.ParserCombinators.Parsec.Char
@@ -32,8 +37,8 @@ termLanguage
              , nestedComments = True
              , identStart     = lower
              , identLetter     = alphaNum <|> oneOf "_'"
-             , opStart	 = opLetter haskellStyle
-             , opLetter	 = oneOf ":!#$%&*+./<=>?\\^|-~"
+             , opStart   = opLetter haskellStyle
+             , opLetter  = oneOf ":!#$%&*+./<=>?\\^|-~"
              , reservedOpNames= ["=", "|", "->", "\\", "@", "#"]
              , reservedNames  = ["let", "letcons", "match", "in", 
                                  "with", "otherwise",
@@ -248,14 +253,14 @@ rel_op = do { reservedOp "<="; return UBound }
 lin_func :: Parser (LinFunc String Int)
 lin_func = do { t <- lin_term
               ; ts <- many lin_term'
-              ; return (gsum (t:ts))
+              ; return (add (t:ts))
               }
 
-
-lin_term = do { v <- identifier; return (var v) }
+lin_term :: Parser (LinFunc String Int)
+lin_term = do { v <- identifier; return (linCombination [(1,v)]) }
            <|> do { c <- natural
                   ; v <- identifier
-                  ; return (fromIntegral c *& v)
+                  ; return (linCombination [(fromInteger c, v)])
                   }
            <?> "linear term"
            

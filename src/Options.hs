@@ -3,16 +3,19 @@ module Options where
 import Cost 
 import System.Console.GetOpt
 
--- command-line options
-data Options = Options { optVerbose :: Bool
-                       , optRecRule :: Int
-                       , optCostModel :: CostModel
-                       } deriving Show
+-- | command-line options
+data Options
+  = Options
+    { optVerbose :: Bool
+    , optRecRule :: Int
+    , optCostModel :: CostModel
+    } deriving Show
 
-defaultOptions = Options { optVerbose=False, 
-                           optRecRule = 2,
-                           optCostModel = zero
-                         }
+defaultOptions
+  = Options { optVerbose=False, 
+              optRecRule = 2,
+              optCostModel = zero
+            }
       
 options = 
   [ Option ['r'] ["rec"]
