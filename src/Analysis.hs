@@ -9,7 +9,6 @@ import           Algebra.Classes hiding (zero)
 
 import           Term
 import           Types
-import           DamasMilner
 import           Control.Monad.State
 import           Control.Monad.Reader
 import           Data.LinearProgram hiding (Var,zero)

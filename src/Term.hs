@@ -1,13 +1,13 @@
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 --
 -- Abstract syntax for minimal lazy language
 -- Pedro Vasconcelos, 2012
 --
-{-# LANGUAGE DeriveFunctor #-}
 module Term where
 
 import           Types
 import           Data.LinearProgram hiding (Var)
-import           Data.List
+-- import           Data.List
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -31,7 +31,7 @@ data Term a
   | Coerce SrcAnn (Term a)     -- ^ source level annotation
   | (Term a) :@ a              -- ^ type checker annotation
   | Ind Ident                  -- ^ indirections
-            deriving (Show, Functor)
+  deriving (Show, Functor, Foldable, Traversable)
 
 -- | match alternatives
 type Alt a = (Cons, [Ident], Term a) 
@@ -49,7 +49,7 @@ data Typing a
            , ann_in :: a 
            , ann_out :: a 
            }
-  deriving (Functor)
+  deriving (Functor, Foldable, Traversable)
 
 
 -- | shorthand constructors for simple (i.e. non-annotated) terms 
@@ -122,26 +122,4 @@ renames :: [Ident] -> [Ident] -> Term a -> Term a
 renames (x:xs) (y:ys) e = renames xs ys (rename x y e)
 renames [] [] e = e
 renames _  _  _ = error "renames: variable lists must have equal length"
-
-
--- | collect all annotations
-instance Annotations Term where
-  annotations (Var x) = []
-  annotations (Lambda x e) = annotations e
-  annotations (App e y) = annotations e
-  annotations (ConsApp c ys) = []
-  annotations (Let x e1 e2) = annotations e1 ++ annotations e2
-  annotations (Match e alts other) = annotations e ++
-                                     concat [annotations e | (c,xs,e)<-alts] ++
-                                     maybe [] annotations other
-  annotations (PrimOp op x y) = []                                   
-  annotations (Const n) = []
-  annotations (Coerce a e) = annotations e
-  annotations (e :@ a) = a : annotations e
-  annotations (Ind x)  = []
-
--- | collect all type variables
-instance Typevars a => Typevars (Term a) where
-  typevars = concat . annotations . fmap typevars
-    
 

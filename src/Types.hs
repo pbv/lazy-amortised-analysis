@@ -1,13 +1,14 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, PatternGuards, DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, PatternGuards,
+             DeriveFunctor, DeriveFoldable, DeriveTraversable
+#-}
 --
 -- Type expressions and annotations
 --
 module Types where
 
-import Data.List (union, delete)
-import Data.Map (Map)
+import           Data.Foldable (toList)
+import           Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Monad (guard)
 
 infixr 4 ~>     -- function type constructor
 
@@ -20,7 +21,7 @@ data TyExp a
   | TyRec [TyAlt a]               -- ^ recursive type
   | TySelf                        -- ^ self-reference in recursive type
   | TyCon TConst                  -- ^ base types (e.g. Int)
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
                           
 
 type TVar = String      -- ^ type variables
@@ -79,34 +80,23 @@ hmtree a = rec [hmalt "Leaf" (tuple [hmthunk a]),
                 hmalt "Branch" (tuple [hmthunk self,
                                        hmthunk self])]
 
--- | classes for overloading the collection of
--- type variables and annotations
---
-class Typevars t where
-  typevars :: t -> [TVar]  -- ^ collect all type variables
 
-class Annotations t where
-  annotations :: t a -> [a]  -- ^ collect all annotations
+annotations :: Foldable t => t a -> [a]
+annotations = toList
 
+-- | collect all type variables
+-- generic foldable and for plain type expressions
+typevars :: Foldable f => f (TyExp a) -> [TVar]
+typevars = foldMap tyvars 
 
-instance Typevars (TyExp a) where
-  typevars TySelf    = []
-  typevars (TyCon _) = []
-  typevars (TyVar x) = [x]
-  typevars (TyThunk _ t) = typevars t
-  typevars (TyFun _ t1 t2) = typevars t1 ++ typevars t2
-  typevars (TyRec alts) = concat [typevars t | (c,_,t)<-alts]
-  typevars (TyTup ts)   = concatMap typevars ts
-
-instance Annotations TyExp where
-  annotations TySelf = []
-  annotations (TyCon _) = []
-  annotations (TyVar x) =  []
-  annotations (TyThunk q t) = q:annotations t
-  annotations (TyFun q t1 t2) = q:annotations t1 ++ annotations t2
-  annotations (TyRec alts) = concat [q:annotations t | (c,q,t)<-alts]
-  annotations (TyTup ts)  = concatMap annotations ts
-
+tyvars :: TyExp a -> [TVar]
+tyvars TySelf    = []
+tyvars (TyCon _) = []
+tyvars (TyVar x) = [x]
+tyvars (TyThunk _ t) = tyvars t
+tyvars (TyFun _ t1 t2) = tyvars t1 ++ tyvars t2
+tyvars (TyRec alts) = concat [tyvars t | (c,_,t)<-alts]
+tyvars (TyTup ts)   = concatMap tyvars ts
 
 
 -- | substitute the recursive self-reference in a type

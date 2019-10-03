@@ -4,18 +4,16 @@
 --
 module Main where
 
-import Term
-import Parser
-import Pretty
-import DamasMilner
-import Analysis
-import Options
-import Cost
-import Text.Parsec
-import System.Exit
-import System.Environment
-import Control.Monad
-import Data.LinearProgram
+import           Term
+import           Parser
+import           DamasMilner
+import           Analysis
+import           Options
+import           Cost
+import           Text.Parsec
+import           System.Exit
+import           System.Environment
+import           Data.LinearProgram
 import qualified Data.Map as Map
  
       

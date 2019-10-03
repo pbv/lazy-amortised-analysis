@@ -5,14 +5,13 @@
 -}
 module DamasMilner where
 
-import Term
-import Types
-import Pretty
-import Text.PrettyPrint.HughesPJ (render)
+import           Term
+import           Types
+import           Pretty
+import           Text.PrettyPrint.HughesPJ (render)
 import qualified Data.Map as Map
-import Control.Monad
-import Control.Monad.Trans.State
-import Control.Monad.Error
+import           Control.Monad.State
+import           Control.Monad.Except
 
 -- type schemes
 newtype HMscheme = Gen ([TVar], HMtype) deriving (Eq,Show)
@@ -88,7 +87,7 @@ unifyEqs' s (TyVar x) (TyVar y) eqs
     GT -> unifyEqs (extend x (TyVar y) s) eqs
 
 unifyEqs' s v@(TyVar x) t eqs 
-  | x `notElem` typevars t = unifyEqs (extend x t s) eqs
+  | x `notElem` tyvars t = unifyEqs (extend x t s) eqs
   | otherwise = throwError $ unlines ["occur check failed:",
                                       render (pretty v),
                                       render (pretty t)]

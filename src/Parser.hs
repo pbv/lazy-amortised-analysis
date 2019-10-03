@@ -4,22 +4,18 @@
 --
 module Parser where
 
-import Prelude         hiding (Num(..))
-import Algebra.Classes
+import           Prelude hiding (Num(..))
+import           Algebra.Classes
 
-import Term
-import Types
-import Control.Monad(when)
-import Control.Applicative ((<$>))
-import Data.List(nub)
-import Data.LinearProgram hiding (Var)
-import qualified Data.LinearProgram as LP
+import           Term
+import           Types
+import           Control.Monad(when)
+import           Data.List(nub)
+import           Data.LinearProgram hiding (Var)
 import qualified Data.Map as Map
-import Text.Parsec
-import Text.ParserCombinators.Parsec.Char
+import           Text.Parsec
 import qualified Text.ParserCombinators.Parsec.Token as P
-import Text.ParserCombinators.Parsec.Language 
-import Text.ParserCombinators.Parsec.Combinator
+import           Text.ParserCombinators.Parsec.Language 
                      
 
 -- type synonym for

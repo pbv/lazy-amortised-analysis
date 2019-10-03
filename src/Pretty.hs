@@ -149,7 +149,7 @@ ppArrow q =  text ("->" ++ showA q)
 instance ShowA a => Pretty (Typing a) where
   prettyPrec _ (Typing e t p p') 
     -- rename all typevars to A, B, C, ...
-    = let tvs = nub (typevars e ++ typevars t)
+    = let tvs = nub (typevars e ++ tyvars t)
           s = Map.fromList $ zip tvs (map TyVar varnames)
           e' = fmap (appsubst s) e
           t' = appsubst s t
