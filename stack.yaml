@@ -1,11 +1,11 @@
 resolver: lts-12.13
 
 packages:
-- location: .
-- location: ../glpk-hs
-#
-# local copy from github repository instead than the older hackage packages
-#
+- .
+- ../glpk-hs
+
+# use local copy from github repository instead than the older hackage packages
+
 
 extra-deps: 
 - gasp-1.1.0.0
