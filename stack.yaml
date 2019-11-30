@@ -2,13 +2,10 @@ resolver: lts-12.13
 
 packages:
 - .
-- ../glpk-hs
-
-# use local copy from github repository instead than the older hackage packages
-
 
 extra-deps: 
-- gasp-1.1.0.0
+- gasp-1.2.0.0
+- glpk-hs-0.7
 
 # Override default flag values for local packages and extra-deps
 flags: {}
