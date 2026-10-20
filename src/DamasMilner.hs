@@ -3,13 +3,14 @@
  -
  - Pedro Vasconcelos, 2012
 -}
+{-# LANGUAGE GeneralizedNewtypeDeriving   #-}
 module DamasMilner where
-
 import           Term
 import           Types
 import           Pretty
 import           Text.PrettyPrint.HughesPJ (render)
 import qualified Data.Map as Map
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Except
 
@@ -28,7 +29,23 @@ type HMcontext = [(Ident, HMscheme)]
 
 -- a monad for Hindler-Milner type inference/checking 
 -- combination of state and failure 
-type Tc = StateT TcState (Either String)
+newtype Tc a = Tc (StateT TcState (Either String) a)
+ deriving 
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadState TcState
+    , MonadError String 
+    )
+
+
+instance MonadFail Tc where
+  fail = error
+
+
+runTc :: Tc a -> TcState -> Either String (a, TcState)
+runTc (Tc m) = runStateT m
+
 
 -- type checking state: fresh var generation and current unifier 
 data TcState = TcState { counter :: Int,  unifier :: HMsubst }
@@ -60,6 +77,10 @@ unify t1 t2 = do u <- gets unifier
                  case unifyEqs u [(t1, t2)] of
                    Left err -> throwError err
                    Right u' -> modify $ \s -> s {unifier=u'}
+
+ensure :: Bool -> String -> Tc ()
+ensure c msg = if c then return () else throwError msg
+
 
 -- unification algorithm
 -- takes the current unifier and a list of term equations 
@@ -140,56 +161,56 @@ extend v t s = Map.insert v t $ Map.map (appsubst s') s
 -- computes the Hindley-Milner annotated term
 -- discards annotations in the original term                   
 --                   
-hm_infer :: HMcontext -> Term () -> Tc (Term HMtype)
+hm_infer :: HMcontext -> Term () -> Tc (Term HMtype, HMtype)
 
 hm_infer ctx (Var x) 
   = do t <- lookupTc x ctx
        a <- freshvar
        unify t (hmthunk (tyvar a))
-       return (Var x :@ tyvar a)
+       return (Var x, tyvar a)
 
 hm_infer ctx (Lambda x e)
   = do a <- freshvar
        let ctx' = (x, nogen (hmthunk (tyvar a))):ctx
-       (e' :@ t) <- hm_infer ctx' e
-       return (Lambda x e' :@ (hmthunk (tyvar a) ~> t))
+       (e', t) <- hm_infer ctx' e
+       return (Lambda x e', (hmthunk (tyvar a) ~> t))
            
 hm_infer ctx (App e y) 
   = do t1 <- lookupTc y ctx
-       (e' :@ te) <- hm_infer ctx e
+       (e', te) <- hm_infer ctx e
        b <- freshvar
        unify te (t1 ~> tyvar b)
-       return (App (e':@te) y :@ tyvar b)
+       return (App (e':@te) y, tyvar b)
        
 hm_infer ctx (ConsApp c ys)
   = do (TyFun _ t' t) <- lookupTc c ctx
        targs <- sequence [lookupTc y ctx | y<-ys]
        unify t' (tuple targs)
-       return (ConsApp c ys :@ t)
+       return (ConsApp c ys, t)
 
 hm_infer ctx (Let x e1 e2)
   = do a <- freshvar
        let ctx' = (x, nogen (hmthunk (tyvar a))):ctx
-       (e1' :@ t1) <- hm_infer ctx' e1
+       (e1', t1) <- hm_infer ctx' e1
        unify (tyvar a) t1
-       (e2' :@ t2) <- hm_infer ctx' e2
-       return (Let x (e1':@t1) e2' :@ t2)
+       (e2', t2) <- hm_infer ctx' e2
+       return (Let x (e1':@t1) e2', t2)
 
 hm_infer ctx (Match e0 alts Nothing)
-  = do (e0' :@ t0) <- hm_infer ctx e0
+  = do (e0', t0) <- hm_infer ctx e0
        a <- freshvar
        alts' <- hm_infer_alts ctx alts t0 (tyvar a)
-       return (Match (e0':@t0) alts' Nothing :@ tyvar a)
+       return (Match (e0':@t0) alts' Nothing, tyvar a)
            
 hm_infer ctx (Match e0 alts (Just e1))
-  = do (e0' :@ t0) <- hm_infer ctx e0
-       (e1' :@ t1) <- hm_infer ctx e1
+  = do (e0', t0) <- hm_infer ctx e0
+       (e1', t1) <- hm_infer ctx e1
        alts' <- hm_infer_alts ctx alts t0 t1       
-       return (Match (e0':@t0) alts' (Just e1') :@ t1)
+       return (Match (e0':@t0) alts' (Just e1'), t1)
        
 -- constants       
 hm_infer ctx (Const n)
-  = return (Const n :@ hmint)
+  = return (Const n, hmint)
 
 -- primitive operations
 -- looks type in the context as if it were a curried function
@@ -199,25 +220,28 @@ hm_infer ctx (PrimOp op x y)
        ty' <- lookupTc y ctx
        unify tx tx'
        unify ty ty'
-       return (PrimOp op x y :@ t)
+       return (PrimOp op x y, t)
 
 hm_infer ctx (Coerce a@(t',_) e) 
-  = do (e' :@ t) <- hm_infer ctx e        
+  = do (e',t) <- hm_infer ctx e        
        -- ensure the annotated type has the same HM structure       
        let t'' = fmap (\_ -> ()) t'
        unify t t''
-       return (Coerce a e' :@ t)
-       
+       return (Coerce a e', t)
+
+hm_infer ctx (Tick e)
+  = do (e',t)<-hm_infer ctx e
+       return (Tick e', t)
 
 hm_infer ctx _ = error "hm_infer: invalid argument"
 
 
 hm_infer_alts ctx alts t0 t1
-  = sequence [ do { TyFun _  (TyTup ts) t <- lookupTc c ctx
-                  ; guard (length xs == length ts)
+  = sequence [ do { TyFun _ (TyTup ts) t <- lookupTc c ctx
+                  ; ensure (length xs == length ts) "constructor arguments"
                   ; unify t0 t
                   ; let ctx' = zip xs (map nogen ts) ++ ctx
-                  ; (e' :@ t') <- hm_infer ctx' e 
+                  ; (e', t') <- hm_infer ctx' e 
                   ; unify t1 t'
                   ; return (c, xs, e') 
                   }  | (c,xs,e) <- alts]
@@ -226,9 +250,9 @@ hm_infer_alts ctx alts t0 t1
 -- perform HM type inference and annotate the term with types
 hm_inference :: Term () -> Either String (Term HMtype) 
 hm_inference e 
-  = do (e',tc) <- runStateT (hm_infer prelude e) tc0        
+  = do ((e',t),tc) <- runTc (hm_infer prelude e) tc0        
        return (let s = unifier tc 
-               in fmap (appsubst s) e')
+               in fmap (appsubst s) (e':@t))
   where  -- initial state for the type checker 
     tc0 = TcState { counter=0, unifier = Map.empty }
 

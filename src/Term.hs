@@ -6,8 +6,7 @@
 module Term where
 
 import           Types
-import           Data.LinearProgram hiding (Var)
--- import           Data.List
+import           Data.LinearProgram hiding (Var, App)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -31,6 +30,7 @@ data Term a
   | Coerce SrcAnn (Term a)     -- ^ source level annotation
   | (Term a) :@ a              -- ^ type checker annotation
   | Ind Ident                  -- ^ indirections
+  | Tick (Term a)              -- ^ increment cost
   deriving (Show, Functor, Foldable, Traversable)
 
 -- | match alternatives
@@ -81,6 +81,7 @@ freevars (PrimOp op x y)   = Set.fromList [x,y]
 freevars (Coerce a e)      = freevars e
 freevars (e :@ a)          = freevars e
 freevars (Ind x)           = Set.singleton x
+freevars (Tick e)          = freevars e
 
 
 -- | rename an identifier
@@ -115,6 +116,7 @@ rename x y (Coerce a e) = Coerce a (rename x y e)
 rename x y (e :@ a) = rename x y e :@ a
 rename x y (Ind v) | v==x      = Ind y
                    | otherwise = Ind v
+rename x y (Tick e) = Tick (rename x y e)                   
 
 
 -- | rename many identifiers 

@@ -1,15 +1,14 @@
-resolver: lts-12.13
+resolver: lts-24.50
 
 packages:
 - .
+- ../glpk-hs
 
 extra-deps: 
-- gasp-1.2.0.0
-- glpk-hs-0.7
+- gasp-1.4.0.0
 
-# Override default flag values for local packages and extra-deps
-flags: {}
 
-# Extra package databases containing global packages
-extra-package-dbs: []
+
+
+  
 

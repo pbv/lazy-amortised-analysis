@@ -20,8 +20,8 @@ executables:
     main:                Main.hs
     source-dirs:         src
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -W
+      - -threaded
+      - -rtsopts
+      
     
 

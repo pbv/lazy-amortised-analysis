@@ -5,13 +5,13 @@
 module Parser where
 
 import           Prelude hiding (Num(..))
-import           Algebra.Classes
+import           Algebra.Classes hiding (App)
 
 import           Term
 import           Types
 import           Control.Monad(when)
 import           Data.List(nub)
-import           Data.LinearProgram hiding (Var)
+import           Data.LinearProgram hiding (Var, App)
 import qualified Data.Map as Map
 import           Text.Parsec
 import qualified Text.ParserCombinators.Parsec.Token as P
@@ -35,7 +35,7 @@ termLanguage
              , identLetter     = alphaNum <|> oneOf "_'"
              , opStart   = opLetter haskellStyle
              , opLetter  = oneOf ":!#$%&*+./<=>?\\^|-~"
-             , reservedOpNames= ["=", "|", "->", "\\", "@", "#"]
+             , reservedOpNames= ["=", "|", "->", "\\", "@", "#", "!"]
              , reservedNames  = ["let", "letcons", "match", "in", 
                                  "with", "otherwise",
                                  "if", "then", "else"]
@@ -154,6 +154,10 @@ appterm = try (do { x <- identifier
                   ; y <- identifier
                   ; return (PrimOp op x y)
                   } <?> "primop")
+          <|> do { reservedOp "!"
+                 ; e <- appterm
+                 ; return (Tick e)
+                 }
           <|> do { e <- term
                  ; ys<- many identifier
                  ; return (foldl App e ys)
@@ -225,7 +229,7 @@ reset_annotations = setState 0
 
 new_annotation :: Parser String
 new_annotation = do { n <- getState
-                    ; updateState (+1)
+                    ; updateState succ
                     ; return ('_':show n)
                     }
 
@@ -249,7 +253,7 @@ rel_op = do { reservedOp "<="; return UBound }
 lin_func :: Parser (LinFunc String Int)
 lin_func = do { t <- lin_term
               ; ts <- many lin_term'
-              ; return (add (t:ts))
+              ; return (Algebra.Classes.sum (t:ts))
               }
 
 lin_term :: Parser (LinFunc String Int)

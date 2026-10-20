@@ -115,6 +115,7 @@ prettyTerm p (e :@ a)
 
 prettyTerm p (Ind x) = ppConsApp "ind" [x]
 
+prettyTerm p (Tick e) = char '!' <+> prettyTerm p e
 
 ppConsApp c xs = text c <> parens (hcat $ punctuate comma (map text xs))
 

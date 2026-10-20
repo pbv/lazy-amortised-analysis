@@ -5,13 +5,14 @@
 module Analysis where
 
 import           Prelude hiding (Num(..))
-import           Algebra.Classes hiding (zero)
+import           Algebra.Classes hiding (App,zero)
 
 import           Term
 import           Types
+import           Control.Monad (zipWithM_, liftM)
 import           Control.Monad.State
 import           Control.Monad.Reader
-import           Data.LinearProgram hiding (Var,zero)
+import           Data.LinearProgram hiding (Var,App,zero)
 import           Data.LinearProgram.GLPK.Solver
 import           Control.Monad.LPMonad hiding (Var)
 import           Data.Map (Map)
@@ -33,9 +34,12 @@ type Acontext = Context Ann
 -- | a monad for constructing linear programs
 type CLP = LPT Ann Int (StateT Ann (Reader Options))
 
--- | fixed zero annotation variable
+-- | constant annotations 
 zero_ann :: Ann
 zero_ann = Ann 0
+
+one_ann :: Ann
+one_ann = Ann 1
 
 zero :: LinFunc Ann Int
 zero = linCombination []
@@ -128,6 +132,9 @@ decorate_term (e :@ t)
   = do e' <- decorate_term e
        t' <- decorate_type t 
        return (e' :@ t')
+
+decorate_term (Tick e)
+  = Tick <$> decorate_term e
 
 
 -- | sharing relation between types
@@ -370,6 +377,12 @@ aa_infer ctx (Coerce (t,cs) e) t' p p'
                     ]
           aa_infer ctx e t' p p'
 
+aa_infer ctx (Tick e) t' p q
+  = do p' <- fresh_ann
+       q' <- fresh_ann
+       (var p, var q) `relaxcost`(var one_ann + var p', var q')
+       aa_infer ctx e t' p' q'
+
 
 aa_infer ctx e t p p' = error ("aa_infer: undefined for " ++ show e)
 
@@ -464,7 +477,7 @@ let_annotations (PrimOp op x y)  = PrimOp op x y
 let_annotations (Const n)        = Const n
 let_annotations (Coerce a e)     = Coerce a (let_annotations e) 
 let_annotations (e :@ a)         = let_annotations e
-
+let_annotations (Tick e)         = Tick (let_annotations e)
 
 
 -- | toplevel inference 
@@ -474,9 +487,10 @@ let_annotations (e :@ a)         = let_annotations e
 aa_inference :: Options -> Term HMtype -> HMtype -> (Typing Ann, LP Ann Int)
 aa_inference opts e t
   = flip runReader opts $
-    flip evalStateT (Ann 1) $
+    flip evalStateT (Ann 2) $
     runLPT $ 
      do { varEq zero_ann 0
+        ; varEq one_ann 1
         ; p <- fresh_ann
         ; e'<- decorate_term e
         ; t'<- decorate_type t
@@ -486,7 +500,8 @@ aa_inference opts e t
         ; return Typing {aterm = let_annotations e', 
                          atype = t', 
                          ann_in  = p, 
-                         ann_out = zero_ann}
+                         ann_out = zero_ann
+                        }
         }
 
 
